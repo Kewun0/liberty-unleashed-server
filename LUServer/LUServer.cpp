@@ -4,6 +4,8 @@
 #include <enet/enet.h>
 #include <map>
 
+#include "ini.h"
+
 
 #pragma comment(lib,"enet.lib")
 
