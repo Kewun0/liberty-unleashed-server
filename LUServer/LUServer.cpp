@@ -77,9 +77,37 @@ void ParseData(ENetHost* server, int id, char* data)
 		} 
 	}
 }
+#include <fstream>
+std::string server_name;
+int max_players = 32;
+
+inline bool does_file_exist(const std::string& name) {
+	struct stat buffer;
+	return (stat(name.c_str(), &buffer) == 0);
+}
 
 int main(int argc, char** argv)
 {
+	if (!does_file_exist("server.ini"))
+	{
+		printf("ERROR: server.ini is missing. Using default configuration\n\n");
+	}
+	inipp::Ini<char> ini;
+	std::ifstream is("server.ini");
+	ini.parse(is);
+	server_name = "Default Server";
+	inipp::extract(ini.sections["config"]["server_name"], server_name);
+	inipp::extract(ini.sections["config"]["max_players"], max_players);
+
+	printf("Liberty Unleashed 0.1 Server Started\n\n");
+
+	if (server_name.length() == 0) server_name = "Default Server";
+
+	printf("Server name: %s\n", server_name.c_str());
+	printf("Max players: %i\n",max_players);
+	//std::ifstream is("test.txt", std::ifstream::binary);
+	
+
 	if (enet_initialize() != 0)
 	{
 		fprintf(stderr, "An error occurred while initializing ENet.\n");
