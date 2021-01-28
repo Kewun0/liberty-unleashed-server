@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 
 	address.host = ENET_HOST_ANY; 
 	
-	address.port = 7777;
+	address.port = port;
 
 
 
