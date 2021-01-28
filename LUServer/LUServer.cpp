@@ -12,19 +12,27 @@
 #pragma warning(disable: 4018)
 #pragma warning(disable: 4244)
 #pragma warning(disable: 4996)
+#pragma warning(disable: 8051)
 
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"winmm.lib") 
+
+ENetEvent event;
+ENetAddress address;
+ENetHost* server;
 
 class Clients
 {
 private:
 	int m_id;
+	int m_health;
+	int m_armour;
 	std::string m_username;
 
 public:
 	Clients(int id) : m_id(id) {}
 
+	void SetHealth(int hp) { m_health = hp; }
 	void SetUsername(std::string username) { m_username = username; }
 
 	int GetID() { return m_id; }
@@ -32,6 +40,7 @@ public:
 };
 
 std::map<int, Clients*> client_map;
+
 
 void SendPacket(ENetPeer* peer, const char* data)
 {
@@ -74,7 +83,21 @@ void ParseData(ENetHost* server, int id, char* data)
 			client_map[id]->SetUsername(username);
 
 			break;
-		} 
+		}
+		case 8:
+		{
+			char send_data[1024] = { '\0' };
+			char health[4];
+			sscanf(data, "8|%[^\n]", &health);
+			sprintf(send_data, "8|%d|%s", id, &health);
+			BroadcastPacket(server, send_data);
+
+			int HEALTH;
+			sscanf(health, "%d", &HEALTH);
+			client_map[id]->SetHealth(HEALTH);
+
+			break;
+		}
 	}
 }
 #include <fstream>
@@ -117,10 +140,6 @@ int main(int argc, char** argv)
 	}
 
 	atexit(enet_deinitialize);
-
-	ENetEvent event;
-	ENetAddress address;
-	ENetHost* server;
 
 	address.host = ENET_HOST_ANY; 
 	
