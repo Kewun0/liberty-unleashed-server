@@ -80,6 +80,7 @@ void ParseData(ENetHost* server, int id, char* data)
 #include <fstream>
 std::string server_name;
 int max_players = 32;
+int port = 7777;
 
 inline bool does_file_exist(const std::string& name) {
 	struct stat buffer;
@@ -99,6 +100,7 @@ int main(int argc, char** argv)
 	server_name = "Default Server";
 	inipp::extract(ini.sections["config"]["server_name"], server_name);
 	inipp::extract(ini.sections["config"]["max_players"], max_players);
+	inipp::extract(ini.sections["config"]["port"], port);
 
 	printf("Liberty Unleashed 0.1 Server Started\n\n");
 
@@ -106,14 +108,14 @@ int main(int argc, char** argv)
 
 	printf("Server name: %s\n", server_name.c_str());
 	printf( "Max players: %i\n",max_players);
-	//std::ifstream is("test.txt", std::ifstream::binary);
-	
+	printf("Port: %i\n", port);
 
 	if (enet_initialize() != 0)
 	{
 		fprintf(stderr, "An error occurred while initializing ENet.\n");
 		return EXIT_FAILURE;
 	}
+
 	atexit(enet_deinitialize);
 
 	ENetEvent event;
