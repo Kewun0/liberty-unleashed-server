@@ -88,9 +88,10 @@ inline bool does_file_exist(const std::string& name) {
 
 int main(int argc, char** argv)
 {
+	system("color 0e");
 	if (!does_file_exist("server.ini"))
 	{
-		printf("ERROR: server.ini is missing. Using default configuration\n\n");
+		printf( "ERROR: server.ini is missing. Using default configuration\n\n");
 	}
 	inipp::Ini<char> ini;
 	std::ifstream is("server.ini");
@@ -104,7 +105,7 @@ int main(int argc, char** argv)
 	if (server_name.length() == 0) server_name = "Default Server";
 
 	printf("Server name: %s\n", server_name.c_str());
-	printf("Max players: %i\n",max_players);
+	printf( "Max players: %i\n",max_players);
 	//std::ifstream is("test.txt", std::ifstream::binary);
 	
 
@@ -126,7 +127,7 @@ int main(int argc, char** argv)
 
 
 	server = enet_host_create(&address	/* the address to bind the server host to */,
-		32	/* allow up to 32 clients and/or outgoing connections */,
+		max_players	/* allow up to max_players clients and/or outgoing connections */,
 		1	/* allow up to 1 channel to be used, 0. */,
 		0	/* assume any amount of incoming bandwidth */,
 		0	/* assume any amount of outgoing bandwidth */);
