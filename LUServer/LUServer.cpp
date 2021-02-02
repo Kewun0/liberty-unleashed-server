@@ -9,15 +9,17 @@
 #include "ini.h"
 
 
-#pragma comment(lib,"enet.lib")
 
 #pragma warning(disable: 4018)
 #pragma warning(disable: 4244)
 #pragma warning(disable: 4996)
 #pragma warning(disable: 8051)
-
+// LINUX: Link to libenet.a [ g++ LUServer.cpp -lstdc++ -L/home/ubuntu/lu_serv -lenet -o Server ]
+#ifdef WIN32
+#pragma comment(lib,"enet.lib")
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"winmm.lib") 
+#endif
 
 ENetEvent event;
 ENetAddress address;
@@ -58,12 +60,9 @@ void BroadcastPacket(ENetHost* server, const char* data)
 
 void DecryptPacket(char* data, int client_id)
 {
-
-
 	std::string str(data);
 	std::string buf;
 	std::stringstream ss(str);
-
 	std::vector<std::string> tokens;
 
 	while (ss >> buf)
@@ -71,16 +70,14 @@ void DecryptPacket(char* data, int client_id)
 		tokens.push_back(buf);
 	}
 
-	if (tokens[0] == "8|") // PACKET TYPE: PLAYER MOVEMENT SYNC
+	if (tokens[0] == "8|")
 	{
 		float health, x, y, z;
-
 		health = atoi(tokens[1].c_str());
+
 		x = atof(tokens[2].c_str());
 		y = atof(tokens[3].c_str());
 		z = atof(tokens[4].c_str());
-
-		//printf("CPlayerSync: [%s,%s,%s,%s,%s] \n", tokens[0].c_str(), tokens[1].c_str(), tokens[2].c_str(), tokens[3].c_str(), tokens[4].c_str());
 	}
 
 	if (data[0] == '9' && data[1] == '|')
@@ -125,6 +122,8 @@ void ParseData(ENetHost* server, int id, char* data)
 			char send_data[1024] = { '\0' };
 			sprintf(send_data, "2|%d|%s", id, username);
 
+			printf("%s has joined the server\n", username);
+
 			BroadcastPacket(server, send_data);
 			client_map[id]->SetUsername(username);
 
@@ -148,14 +147,18 @@ std::string server_name;
 int max_players = 32;
 int port = 7777;
 
-inline bool does_file_exist(const std::string& name) {
-	struct stat buffer;
-	return (stat(name.c_str(), &buffer) == 0);
+inline bool does_file_exist(const std::string& name)
+{
+	#ifdef WIN32
+		struct stat buffer;
+		return (stat(name.c_str(), &buffer) == 0);
+	#else
+		return (access(name.c_str(), F_OK) != -1);
+	#endif
 }
 
 int main(int argc, char** argv)
 {
-	system("color 0e");
 	if (!does_file_exist("server.ini"))
 	{
 		printf( "ERROR: server.ini is missing. Using default configuration\n\n");
@@ -164,6 +167,7 @@ int main(int argc, char** argv)
 	std::ifstream is("server.ini");
 	ini.parse(is);
 	server_name = "Default Server";
+
 	inipp::extract(ini.sections["config"]["server_name"], server_name);
 	inipp::extract(ini.sections["config"]["max_players"], max_players);
 	inipp::extract(ini.sections["config"]["port"], port);
@@ -173,7 +177,7 @@ int main(int argc, char** argv)
 	if (server_name.length() == 0) server_name = "Default Server";
 
 	printf("Server name: %s\n", server_name.c_str());
-	printf( "Max players: %i\n",max_players);
+	printf("Max players: %i\n",max_players);
 	printf("Port: %i\n", port);
 
 	if (enet_initialize() != 0)
@@ -187,14 +191,7 @@ int main(int argc, char** argv)
 	address.host = ENET_HOST_ANY; 
 	
 	address.port = port;
-
-
-
-	server = enet_host_create(&address	/* the address to bind the server host to */,
-		max_players	/* allow up to max_players clients and/or outgoing connections */,
-		1	/* allow up to 1 channel to be used, 0. */,
-		0	/* assume any amount of incoming bandwidth */,
-		0	/* assume any amount of outgoing bandwidth */);
+	server = enet_host_create(&address,max_players,1,0,0);
 
 	if (server == NULL)
 	{
@@ -211,10 +208,6 @@ int main(int argc, char** argv)
 		{ 
 			if (event.type == ENET_EVENT_TYPE_CONNECT)
 			{
-				printf("A new client connected from %x:%u.\n",
-					event.peer->address.host,
-					event.peer->address.port);
-
 				for (auto const& x : client_map)
 				{
 					char send_data[1024] = { '\0' };
@@ -232,20 +225,14 @@ int main(int argc, char** argv)
 			}
 			else if (event.type == ENET_EVENT_TYPE_RECEIVE)
 			{
-				/*printf("A packet of length %u containing %s was received from %s on channel %u.\n",
-					event.packet->dataLength,
-					event.packet->data,
-					event.peer->data,
-					event.channelID);*/
 				char data[256];
 				sprintf(data, "%s", event.packet->data);
 				ParseData(server, static_cast<Clients*>(event.peer->data)->GetID(), data);
 				enet_packet_destroy(event.packet);
 			}
-			else if (event.type== ENET_EVENT_TYPE_DISCONNECT){
-				printf("%x:%u disconnected.\n",
-					event.peer->address.host,
-					event.peer->address.port);
+			else if (event.type== ENET_EVENT_TYPE_DISCONNECT)
+			{
+				printf("%s has left the server\n", static_cast<Clients*>(event.peer->data)->GetUsername().c_str());
 				char disconnected_data[126] = { '\0' };
 				sprintf(disconnected_data, "4|%d", static_cast<Clients*>(event.peer->data)->GetID());
 				BroadcastPacket(server, disconnected_data);
