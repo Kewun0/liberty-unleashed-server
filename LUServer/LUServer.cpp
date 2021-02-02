@@ -3,6 +3,8 @@
 #include <iostream>
 #include <enet/enet.h>
 #include <map>
+#include <string>
+#include <vector>
 
 #include "ini.h"
 
@@ -44,20 +46,64 @@ std::map<int, Clients*> client_map;
 
 void SendPacket(ENetPeer* peer, const char* data)
 {
-	ENetPacket* packet = enet_packet_create(data, strlen(data) + 1, ENET_PACKET_FLAG_RELIABLE);
+	ENetPacket* packet = enet_packet_create(data, strlen(data) + 1, ENET_PACKET_FLAG_UNSEQUENCED);
 	enet_peer_send(peer, 0, packet);
 }
 
 void BroadcastPacket(ENetHost* server, const char* data)
 {
-	ENetPacket* packet = enet_packet_create(data, strlen(data) + 1, ENET_PACKET_FLAG_RELIABLE);
+	ENetPacket* packet = enet_packet_create(data, strlen(data) + 1, ENET_PACKET_FLAG_UNSEQUENCED);
 	enet_host_broadcast(server, 0, packet);
+}
+
+void DecryptPacket(char* data, int client_id)
+{
+
+
+	std::string str(data);
+	std::string buf;
+	std::stringstream ss(str);
+
+	std::vector<std::string> tokens;
+
+	while (ss >> buf)
+	{
+		tokens.push_back(buf);
+	}
+
+	if (tokens[0] == "8|") // PACKET TYPE: PLAYER MOVEMENT SYNC
+	{
+		float health, x, y, z;
+
+		health = atoi(tokens[1].c_str());
+		x = atof(tokens[2].c_str());
+		y = atof(tokens[3].c_str());
+		z = atof(tokens[4].c_str());
+
+		//printf("CPlayerSync: [%s,%s,%s,%s,%s] \n", tokens[0].c_str(), tokens[1].c_str(), tokens[2].c_str(), tokens[3].c_str(), tokens[4].c_str());
+	}
+
+	if (data[0] == '9' && data[1] == '|')
+	{
+		char* token = strtok(data, "|");
+		std::string packet;
+		while (token != NULL)
+		{
+			packet = token;
+			token = strtok(NULL, "|");
+		}
+		char data[256];
+		sprintf(data, "9| %s:%s", client_map[client_id]->GetUsername().c_str(), packet.c_str());
+		BroadcastPacket(server, data);
+	}
 }
 
 void ParseData(ENetHost* server, int id, char* data)
 {
 	int data_type;
 	sscanf(data, "%d|", &data_type);
+
+	
 
 	switch (data_type)
 	{
@@ -84,18 +130,15 @@ void ParseData(ENetHost* server, int id, char* data)
 
 			break;
 		}
+		case 9:
+		{
+			DecryptPacket(data, id);
+			break;
+		}
 		case 8:
 		{
-			char send_data[1024] = { '\0' };
-			char health[4];
-			sscanf(data, "8|%[^\n]", &health);
-			sprintf(send_data, "8|%d|%s", id, &health);
-			BroadcastPacket(server, send_data);
-
-			int HEALTH;
-			sscanf(health, "%d", &HEALTH);
-			client_map[id]->SetHealth(HEALTH);
-
+			DecryptPacket(data, id);
+			BroadcastPacket(server, data);
 			break;
 		}
 	}
@@ -159,13 +202,12 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	int new_player_id = 0;
-	// gameloop
+	
 	while (1!=2)
 	{
 		ENetEvent event;
-		/* Wait up to 1000 milliseconds for an event. */
 		
-		while (enet_host_service(server, &event, 1000) > 0)
+		while (enet_host_service(server, &event, 0) > 0)
 		{ 
 			if (event.type == ENET_EVENT_TYPE_CONNECT)
 			{
@@ -190,18 +232,20 @@ int main(int argc, char** argv)
 			}
 			else if (event.type == ENET_EVENT_TYPE_RECEIVE)
 			{
-				printf("A packet of length %u containing %s was received from %s on channel %u.\n",
+				/*printf("A packet of length %u containing %s was received from %s on channel %u.\n",
 					event.packet->dataLength,
 					event.packet->data,
 					event.peer->data,
-					event.channelID);
+					event.channelID);*/
 				char data[256];
 				sprintf(data, "%s", event.packet->data);
 				ParseData(server, static_cast<Clients*>(event.peer->data)->GetID(), data);
 				enet_packet_destroy(event.packet);
 			}
 			else if (event.type== ENET_EVENT_TYPE_DISCONNECT){
-				printf("%s disconnected.\n", event.peer->data);
+				printf("%x:%u disconnected.\n",
+					event.peer->address.host,
+					event.peer->address.port);
 				char disconnected_data[126] = { '\0' };
 				sprintf(disconnected_data, "4|%d", static_cast<Clients*>(event.peer->data)->GetID());
 				BroadcastPacket(server, disconnected_data);
