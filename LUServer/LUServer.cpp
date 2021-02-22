@@ -8,7 +8,20 @@
 
 #include "ini.h"
 #include "squirrel.h"
-
+#include "sqstdaux.h"
+#include "sqstdblob.h"
+#include "sqstdio.h"
+#include "sqstdmath.h"
+#include "sqstdmath.h"
+#include "sqstdstring.h"
+#include "sqstdsystem.h"
+#include "Raknet/MessageIdentifiers.h"
+#include "Raknet/RakPeerInterface.h"
+#include "Raknet/RakNetStatistics.h"
+#include "Raknet/RakNetTypes.h"
+#include "Raknet/BitStream.h"
+#include "Raknet/RakSleep.h"
+#include "Raknet/PacketLogger.h"
 
 
 #pragma warning(disable: 4018)
@@ -20,6 +33,8 @@
 #pragma comment(lib,"enet.lib")
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"winmm.lib") 
+#pragma comment(lib,"squirrel.lib")
+#pragma comment(lib,"sqstdlib.lib")
 #endif
 
 ENetEvent event;
@@ -45,6 +60,200 @@ public:
 };
 
 std::map<int, Clients*> client_map;
+
+
+void RegisterFunction(HSQUIRRELVM pVM, char* szFunc, SQFUNCTION func, int params, const char* szTemplate)
+{
+	sq_pushroottable(pVM);
+
+	sq_pushstring(pVM, (const SQChar*)szFunc, -1);
+	sq_newclosure(pVM, func, 0);
+	if (params != -1)
+	{
+		sq_setparamscheck(pVM, params, (const SQChar*)szTemplate);
+	}
+	sq_createslot(pVM, -3);
+}
+
+void printfunc(SQVM* pVM, const char* szFormat, ...)
+{
+	va_list vl;
+	char szBuffer[512];
+	va_start(vl, szFormat);
+	vsprintf(szBuffer, szFormat, vl);
+	va_end(vl);
+	printf(szBuffer);
+}
+
+SQInteger sq_getPlayerName(SQVM* pVM)
+{
+	SQInteger playerSystemAddress;
+	sq_getinteger(pVM, -1, &playerSystemAddress);
+	//if (client_map[playerSystemAddress]->GetUsername().length() != 0)
+//	{
+		
+		const char* pName = client_map[playerSystemAddress]->GetUsername().c_str();
+
+		printf("TESTOVIRON%s\n",client_map[playerSystemAddress]->GetUsername().c_str());
+
+		sq_pushstring(pVM, pName, -1);
+		return 1;
+	//}
+
+	//sq_pushbool(pVM, false);
+//	return 1;
+}
+
+int sq_register_natives(SQVM* pVM)
+{
+	//RegisterFunction(pVM, (char*)"MessagePlayer", sq_sendPlayerMessage, 3, ".si");
+	//RegisterFunction(pVM, (char*)"GetPlayerHealth", sq_getPlayerHealth, 2, ".i");
+	//RegisterFunction(pVM, (char*)"GetPlayerArmour", sq_getPlayerArmour, 2, ".i");
+	RegisterFunction(pVM, (char*)"GetPlayerName", (SQFUNCTION)sq_getPlayerName, 2, ".n");
+
+	return 1;
+}
+
+class CScript
+{
+private:
+	SQVM* m_pVM;
+	char m_szScriptName[256];
+	char m_szScriptAuthor[256];
+	char m_szScriptVersion[256];
+public:
+
+	SQVM* GetVM() { return m_pVM; };
+
+	char* GetScriptName() { return (char*)&m_szScriptName; };
+	char* GetScriptAuthor() { return (char*)&m_szScriptAuthor; };
+	char* GetScriptVersion() { return (char*)&m_szScriptVersion; };
+	void SetScriptAuthor(const char* szAuthor) { strncpy(m_szScriptAuthor, szAuthor, sizeof(m_szScriptAuthor)); };
+	void SetScriptVersion(const char* szVersion) { strncpy(m_szScriptVersion, szVersion, sizeof(m_szScriptVersion)); };
+	CScript(const char* szScriptName)
+	{
+		char szScriptPath[512];
+		sprintf(szScriptPath, "%s", szScriptName);
+
+		FILE* fp = fopen(szScriptPath, "rb");
+
+		if (!fp) {
+			printf("Script: Failed to load script %s - file does not exist \n", szScriptName);
+			return;
+		}
+
+		fclose(fp);
+
+		strcpy(m_szScriptName, szScriptName);
+
+		m_pVM = sq_open(1024);
+
+		SQVM* pVM = m_pVM;
+
+		sqstd_seterrorhandlers(pVM);
+
+		sq_setprintfunc(pVM, (SQPRINTFUNCTION)printfunc, (SQPRINTFUNCTION)printfunc);
+
+		sq_pushroottable(pVM);
+
+		sqstd_register_bloblib(pVM);	
+
+		sqstd_register_iolib(pVM);
+
+		sqstd_register_mathlib(pVM);
+
+		sqstd_register_stringlib(pVM);
+
+		sqstd_register_systemlib(pVM);
+
+		sq_register_natives(pVM);
+
+		if (SQ_FAILED(sqstd_dofile(pVM, (const SQChar*)szScriptPath, SQFalse, SQTrue)))
+		{
+			printf("Script: Compiling script error. Halting \n");
+			return;
+		}
+
+		sq_pop(pVM, 1);
+
+		printf("Script: Loaded %s \n", szScriptName);
+
+		return;
+	}
+};
+CScript* test;
+
+void onScriptLoad()
+{
+	if (test)
+	{
+		SQVM* pVM = test->GetVM();
+		int iTop = sq_gettop(pVM);
+		sq_pushroottable(pVM);
+		sq_pushstring(pVM, (const SQChar*)"onScriptLoad", -1);
+		if (SQ_SUCCEEDED(sq_get(pVM, -2)))
+		{
+			sq_pushroottable(pVM);
+			sq_call(pVM, 1, true, true);
+		}
+		sq_settop(pVM, iTop);
+	}
+}
+
+void onPlayerJoin(int playerId)
+{
+	if (test)
+	{
+		SQVM* pVM = test->GetVM();
+		int iTop = sq_gettop(pVM);
+		sq_pushroottable(pVM);
+		sq_pushstring(pVM, (const SQChar*)"onPlayerJoin", -1);
+		if (SQ_SUCCEEDED(sq_get(pVM, -2)))
+		{
+			sq_pushroottable(pVM);
+			sq_pushinteger(pVM, playerId);
+			sq_call(pVM, 2, true, true);
+		}
+		sq_settop(pVM, iTop);
+	}
+}
+
+void onPlayerConnect(int playerId)
+{
+	if (test)
+	{
+		SQVM* pVM = test->GetVM();
+		int iTop = sq_gettop(pVM);
+		sq_pushroottable(pVM);
+		sq_pushstring(pVM, (const SQChar*)"onPlayerConnect", -1);
+		if (SQ_SUCCEEDED(sq_get(pVM, -2)))
+		{
+			sq_pushroottable(pVM);
+			sq_pushinteger(pVM, playerId);
+			sq_call(pVM, 2, true, true);
+		}
+		sq_settop(pVM, iTop);
+	}
+}
+
+
+void onPlayerPart(int playerId)
+{
+	if (test)
+	{
+		SQVM* pVM = test->GetVM();
+		int iTop = sq_gettop(pVM);
+		sq_pushroottable(pVM);
+		sq_pushstring(pVM, (const SQChar*)"onPlayerPart", -1);
+		if (SQ_SUCCEEDED(sq_get(pVM, -2)))
+		{
+			sq_pushroottable(pVM);
+			sq_pushinteger(pVM, playerId);
+			sq_call(pVM, 2, true, true);
+		}
+		sq_settop(pVM, iTop);
+	}
+}
 
 
 void SendPacket(ENetPeer* peer, const char* data)
@@ -119,10 +328,10 @@ void ParseData(ENetHost* server, int id, char* data)
 		{
 			char username[80];
 			sscanf(data, "2|%[^\n]", &username);
-
+			
 			char send_data[1024] = { '\0' };
 			sprintf(send_data, "2|%d|%s", id, username);
-
+			onPlayerJoin(id);
 			printf("%s has joined the server\n", username);
 
 			BroadcastPacket(server, send_data);
@@ -158,6 +367,11 @@ inline bool does_file_exist(const std::string& name)
 	#endif
 }
 
+void ServerThread()
+{
+
+}
+
 int main(int argc, char** argv)
 {
 	if (!does_file_exist("server.ini"))
@@ -169,7 +383,10 @@ int main(int argc, char** argv)
 	ini.parse(is);
 	server_name = "Default Server";
 
+	std::string script_name = "";
+
 	inipp::extract(ini.sections["config"]["server_name"], server_name);
+	inipp::extract(ini.sections["config"]["script"], script_name);
 	inipp::extract(ini.sections["config"]["max_players"], max_players);
 	inipp::extract(ini.sections["config"]["port"], port);
 
@@ -180,6 +397,11 @@ int main(int argc, char** argv)
 	printf("Server name: %s\n", server_name.c_str());
 	printf("Max players: %i\n",max_players);
 	printf("Port: %i\n", port);
+
+	if (script_name.length() == 0) {
+		printf("Script: No script specified\n");
+	}
+	else { test = new CScript(script_name.c_str()); }
 
 	if (enet_initialize() != 0)
 	{
@@ -223,6 +445,7 @@ int main(int argc, char** argv)
 				char data_to_send[126] = { '\0' };
 				sprintf(data_to_send, "3|%d", new_player_id);
 				SendPacket(event.peer, data_to_send);
+				onPlayerConnect(new_player_id);
 			}
 			else if (event.type == ENET_EVENT_TYPE_RECEIVE)
 			{
@@ -233,6 +456,7 @@ int main(int argc, char** argv)
 			}
 			else if (event.type== ENET_EVENT_TYPE_DISCONNECT)
 			{
+				onPlayerPart(static_cast<Clients*>(event.peer->data)->GetID());
 				printf("%s has left the server\n", static_cast<Clients*>(event.peer->data)->GetUsername().c_str());
 				char disconnected_data[126] = { '\0' };
 				sprintf(disconnected_data, "4|%d", static_cast<Clients*>(event.peer->data)->GetID());
