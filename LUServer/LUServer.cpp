@@ -15,13 +15,14 @@
 #include "sqstdmath.h"
 #include "sqstdstring.h"
 #include "sqstdsystem.h"
-#include "Raknet/MessageIdentifiers.h"
-#include "Raknet/RakPeerInterface.h"
-#include "Raknet/RakNetStatistics.h"
-#include "Raknet/RakNetTypes.h"
-#include "Raknet/BitStream.h"
-#include "Raknet/RakSleep.h"
-#include "Raknet/PacketLogger.h"
+ 
+#include "raknet/MessageIdentifiers.h"
+#include "raknet/peerinterface.h"
+#include "raknet/statistics.h"
+#include "raknet/types.h"
+#include "raknet/BitStream.h"
+#include "raknet/sleep.h"
+#include "raknet/PacketLogger.h"
 
 
 #pragma warning(disable: 4018)
@@ -35,6 +36,8 @@
 #pragma comment(lib,"winmm.lib") 
 #pragma comment(lib,"squirrel.lib")
 #pragma comment(lib,"sqstdlib.lib")
+#pragma comment(lib,"slikenet.lib")
+
 #endif
 
 ENetEvent event;
@@ -367,8 +370,25 @@ inline bool does_file_exist(const std::string& name)
 	#endif
 }
 
+unsigned char GetPacketIdentifier(SLNet::Packet* p)
+{
+	if (p == 0)
+		return 255; 
+
+	if ((unsigned char)p->data[0] == ID_TIMESTAMP)
+	{
+		RakAssert(p->length > sizeof(SLNet::MessageID) + sizeof(SLNet::Time));
+		return (unsigned char)p->data[sizeof(SLNet::MessageID) + sizeof(SLNet::Time)];
+	}
+	else
+		return (unsigned char)p->data[0];
+}
+
 void ServerThread()
 {
+	printf("Starting server \n");
+
+
 
 }
 
@@ -376,7 +396,7 @@ int main(int argc, char** argv)
 {
 	if (!does_file_exist("server.ini"))
 	{
-		printf( "ERROR: server.ini is missing. Using default configuration\n\n");
+		printf("ERROR: server.ini is missing. Using default configuration\n\n");
 	}
 	inipp::Ini<char> ini;
 	std::ifstream is("server.ini");
@@ -395,79 +415,109 @@ int main(int argc, char** argv)
 	if (server_name.length() == 0) server_name = "Default Server";
 
 	printf("Server name: %s\n", server_name.c_str());
-	printf("Max players: %i\n",max_players);
+	printf("Max players: %i\n", max_players);
 	printf("Port: %i\n", port);
 
 	if (script_name.length() == 0) {
 		printf("Script: No script specified\n");
 	}
 	else { test = new CScript(script_name.c_str()); }
+	 
 
-	if (enet_initialize() != 0)
+	SLNet::RakPeerInterface* server = SLNet::RakPeerInterface::GetInstance();
+	SLNet::RakNetStatistics* rss;
+	server->SetTimeoutTime(30000, SLNet::UNASSIGNED_SYSTEM_ADDRESS);
+
+	SLNet::Packet* p;
+
+	unsigned char packetIdentifier;   
+
+	SLNet::SystemAddress clientID = SLNet::UNASSIGNED_SYSTEM_ADDRESS;
+
+	char portstring[30];
+
+	SLNet::SocketDescriptor socketDescriptors[2];
+	socketDescriptors[0].port = static_cast<unsigned short>(port);
+	socketDescriptors[0].socketFamily = AF_INET; // Test out IPV4
+	socketDescriptors[1].port = static_cast<unsigned short>(port);
+	socketDescriptors[1].socketFamily = AF_INET6; // Test out IPV6
+	bool b = server->Startup(max_players, socketDescriptors, 2) == SLNet::RAKNET_STARTED;
+	server->SetMaximumIncomingConnections(max_players);
+
+	if (!b)
 	{
-		fprintf(stderr, "An error occurred while initializing ENet.\n");
-		return EXIT_FAILURE;
-	}
-
-	atexit(enet_deinitialize);
-
-	address.host = ENET_HOST_ANY; 
-	
-	address.port = port;
-	server = enet_host_create(&address,max_players,1,0,0);
-
-	if (server == NULL)
-	{
-		printf("An error occurred while trying to create an ENet server host.");
-		return 1;
-	}
-	int new_player_id = 0;
-	
-	while (1!=2)
-	{
-		ENetEvent event;
-		
-		while (enet_host_service(server, &event, 0) > 0)
-		{ 
-			if (event.type == ENET_EVENT_TYPE_CONNECT)
-			{
-				for (auto const& x : client_map)
-				{
-					char send_data[1024] = { '\0' };
-					sprintf(send_data, "2|%d|%s", x.first, x.second->GetUsername().c_str());
-					BroadcastPacket(server, send_data);
-				}
-
-				new_player_id++;
-				client_map[new_player_id] = new Clients(new_player_id);
-				event.peer->data = client_map[new_player_id];
-
-				char data_to_send[126] = { '\0' };
-				sprintf(data_to_send, "3|%d", new_player_id);
-				SendPacket(event.peer, data_to_send);
-				onPlayerConnect(new_player_id);
-			}
-			else if (event.type == ENET_EVENT_TYPE_RECEIVE)
-			{
-				char data[256];
-				sprintf(data, "%s", event.packet->data);
-				ParseData(server, static_cast<Clients*>(event.peer->data)->GetID(), data);
-				enet_packet_destroy(event.packet);
-			}
-			else if (event.type== ENET_EVENT_TYPE_DISCONNECT)
-			{
-				onPlayerPart(static_cast<Clients*>(event.peer->data)->GetID());
-				printf("%s has left the server\n", static_cast<Clients*>(event.peer->data)->GetUsername().c_str());
-				char disconnected_data[126] = { '\0' };
-				sprintf(disconnected_data, "4|%d", static_cast<Clients*>(event.peer->data)->GetID());
-				BroadcastPacket(server, disconnected_data);
-				event.peer->data = NULL;
-			}
+		b = server->Startup(4, socketDescriptors, 1) == SLNet::RAKNET_STARTED;
+		if (!b)
+		{
+			puts("Server failed to start: Port in use?");
+			exit(1);
 		}
 	}
 
-	enet_host_destroy(server);
+	server->SetOccasionalPing(true);
+	server->SetUnreliableTimeout(1000);
+
+	DataStructures::List< SLNet::RakNetSocket2* > sockets;
+	server->GetSockets(sockets);
+
+
+	for (unsigned int i = 0; i < server->GetNumberOfAddresses(); i++)
+	{
+		SLNet::SystemAddress sa = server->GetInternalID(SLNet::UNASSIGNED_SYSTEM_ADDRESS, i);
+	}
+	char message[2024];
+
+	for (;;)
+	{
+		RakSleep(30);
+		for (p = server->Receive(); p; server->DeallocatePacket(p), p = server->Receive())
+		{
+			packetIdentifier = GetPacketIdentifier(p);
+
+			switch (packetIdentifier)
+			{
+			case ID_DISCONNECTION_NOTIFICATION:
+				printf("ID_DISCONNECTION_NOTIFICATION from %s\n", p->systemAddress.ToString(true));;
+				break;
+			case ID_NEW_INCOMING_CONNECTION:
+				printf("ID_NEW_INCOMING_CONNECTION from %s with GUID %s\n", p->systemAddress.ToString(true), p->guid.ToString());
+				clientID = p->systemAddress;
+				printf("Remote internal IDs:\n");
+				for (int index = 0; index < MAXIMUM_NUMBER_OF_INTERNAL_IDS; index++)
+				{
+					SLNet::SystemAddress internalId = server->GetInternalID(p->systemAddress, index);
+					if (internalId != SLNet::UNASSIGNED_SYSTEM_ADDRESS)
+					{
+						printf("%i. %s\n", index + 1, internalId.ToString(true));
+					}
+				}
+
+				break;
+
+			case ID_INCOMPATIBLE_PROTOCOL_VERSION:
+				printf("ID_INCOMPATIBLE_PROTOCOL_VERSION\n");
+				break;
+
+			case ID_CONNECTED_PING:
+			case ID_UNCONNECTED_PING:
+				printf("Ping from %s\n", p->systemAddress.ToString(true));
+				break;
+
+			case ID_CONNECTION_LOST:
+				printf("ID_CONNECTION_LOST from %s\n", p->systemAddress.ToString(true));;
+				break;
+
+			default:
+				printf("%s\n", p->data);
+
+				sprintf(message, "%s", p->data);
+				server->Send(message, (const int)strlen(message) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, p->systemAddress, true);
+				 
+				break;
+			}
+
+		}
+	}
 
 	return 0;
 }
- 
