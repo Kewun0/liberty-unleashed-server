@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "ini.h"
+#include "squirrel.h"
 
 
 

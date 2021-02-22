@@ -146,6 +146,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ini.h" />
+    <ClInclude Include="sqmodule.h" />
+    <ClInclude Include="sqrat.h" />
+    <ClInclude Include="sqratimport.h" />
+    <ClInclude Include="sqstdaux.h" />
+    <ClInclude Include="sqstdblob.h" />
+    <ClInclude Include="sqstdio.h" />
+    <ClInclude Include="sqstdmath.h" />
+    <ClInclude Include="sqstdstring.h" />
+    <ClInclude Include="sqstdsystem.h" />
+    <ClInclude Include="squirrel.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
