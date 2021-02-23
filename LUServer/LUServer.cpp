@@ -116,27 +116,35 @@ SQInteger sq_getPlayerName(SQVM* pVM)
 {
 	SQInteger playerSystemAddress;
 	sq_getinteger(pVM, -1, &playerSystemAddress);
-	//if (client_map[playerSystemAddress]->GetUsername().length() != 0)
-//	{
-		
-		//const char* pName = client_map[playerSystemAddress]->GetUsername().c_str();
+	if (Players[playerSystemAddress]->m_Nick.length() != 0 && Players[playerSystemAddress]->m_bActive == true)
+	{
+		sq_pushstring(pVM, Players[playerSystemAddress]->m_Nick.c_str(), -1);
+	}
+	else
+		sq_pushbool(pVM, false);
 
-		//printf("TESTOVIRON%s\n",client_map[playerSystemAddress]->GetUsername().c_str());
-
-		//sq_pushstring(pVM, pName, -1);
-		return 1;
-	//}
-
-	//sq_pushbool(pVM, false);
-//	return 1;
+	return 1;
 }
+
+SQInteger sq_getPlayerLUID(SQVM* pVM)
+{
+	SQInteger playerSystemAddress;
+	sq_getinteger(pVM, -1, &playerSystemAddress);
+	if (Players[playerSystemAddress]->m_LUID.length() != 0 && Players[playerSystemAddress]->m_bActive == true )
+	{
+		sq_pushstring(pVM, Players[playerSystemAddress]->m_LUID.c_str(), -1);
+	}
+	else
+		sq_pushbool(pVM, false);
+
+	return 1;
+}
+
 
 int sq_register_natives(SQVM* pVM)
 {
-	//RegisterFunction(pVM, (char*)"MessagePlayer", sq_sendPlayerMessage, 3, ".si");
-	//RegisterFunction(pVM, (char*)"GetPlayerHealth", sq_getPlayerHealth, 2, ".i");
-	//RegisterFunction(pVM, (char*)"GetPlayerArmour", sq_getPlayerArmour, 2, ".i");
 	RegisterFunction(pVM, (char*)"GetPlayerName", (SQFUNCTION)sq_getPlayerName, 2, ".n");
+	RegisterFunction(pVM, (char*)"GetPlayerLUID", (SQFUNCTION)sq_getPlayerLUID, 2, ".n");
 	return 1;
 }
 
@@ -240,7 +248,6 @@ void onPlayerConnect(int playerId)
 	}
 }
 
-
 void onPlayerPart(int playerId)
 {
 	if (test)
@@ -294,6 +301,7 @@ void ProcessPacket(int playerID, unsigned char* data)
 			Players[playerID]->m_LUID = (char*)_luid;
 			Players[playerID]->m_ID = playerID;
 		}
+		onPlayerJoin(playerID);
 		printf("\n[PACKET_TYPE_LUID] Received LUID From %i, %s", playerID, Players[playerID]->m_LUID.c_str());
 
 	}
@@ -301,7 +309,7 @@ void ProcessPacket(int playerID, unsigned char* data)
 	{
 		unsigned char* _nick = data + 4;
 		Players[playerID]->m_Nick = (char*)_nick;
-
+		onPlayerConnect(playerID);
 		printf("\n[PACKET_TYPE_NAME] Received Nickname From %i, %s", playerID,_nick);
 	}
 }
@@ -310,6 +318,7 @@ void onPlayerDisconnect(int playerID)
 {
 	Players[playerID]->m_bActive = false;
 	Players[playerID]->m_ID = -1;
+	onPlayerPart(playerID);
 }
 
 int main(int argc, char** argv)
