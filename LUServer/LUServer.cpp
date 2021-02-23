@@ -1,10 +1,10 @@
 #define CINTERFACE
 
 #include <iostream>
-#include <enet/enet.h>
 #include <map>
 #include <string>
 #include <vector>
+#include <fstream>
 
 #include "ini.h"
 #include "squirrel.h"
@@ -31,18 +31,16 @@
 #pragma warning(disable: 8051)
 // LINUX: Link to libenet.a [ g++ LUServer.cpp -lstdc++ -L/home/ubuntu/lu_serv -lenet -o Server ]
 #ifdef WIN32
-#pragma comment(lib,"enet.lib")
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"winmm.lib") 
 #pragma comment(lib,"squirrel.lib")
 #pragma comment(lib,"sqstdlib.lib")
 #pragma comment(lib,"slikenet.lib")
-
 #endif
 
-ENetEvent event;
-ENetAddress address;
-ENetHost* server;
+std::string server_name;
+int max_players = 32;
+int port = 7777;
 
 class CPlayer
 {
@@ -64,6 +62,7 @@ public:
 
 	std::string m_systemAddress;
 	std::string m_LUID;
+	std::string m_Nick;
 
 	CPlayer()
 	{
@@ -91,33 +90,9 @@ void RemovePlayer(int playerID)
 	Players[playerID]->m_ID = -1;
 }
 
-
-
-class Clients
-{
-private:
-	int m_id;
-	int m_health;
-	int m_armour;
-	std::string m_username;
-
-public:
-	Clients(int id) : m_id(id) {}
-
-	void SetHealth(int hp) { m_health = hp; }
-	void SetUsername(std::string username) { m_username = username; }
-
-	int GetID() { return m_id; }
-	std::string GetUsername() { return m_username; }
-};
-
-std::map<int, Clients*> client_map;
-
-
 void RegisterFunction(HSQUIRRELVM pVM, char* szFunc, SQFUNCTION func, int params, const char* szTemplate)
 {
 	sq_pushroottable(pVM);
-
 	sq_pushstring(pVM, (const SQChar*)szFunc, -1);
 	sq_newclosure(pVM, func, 0);
 	if (params != -1)
@@ -144,11 +119,11 @@ SQInteger sq_getPlayerName(SQVM* pVM)
 	//if (client_map[playerSystemAddress]->GetUsername().length() != 0)
 //	{
 		
-		const char* pName = client_map[playerSystemAddress]->GetUsername().c_str();
+		//const char* pName = client_map[playerSystemAddress]->GetUsername().c_str();
 
-		printf("TESTOVIRON%s\n",client_map[playerSystemAddress]->GetUsername().c_str());
+		//printf("TESTOVIRON%s\n",client_map[playerSystemAddress]->GetUsername().c_str());
 
-		sq_pushstring(pVM, pName, -1);
+		//sq_pushstring(pVM, pName, -1);
 		return 1;
 	//}
 
@@ -162,7 +137,6 @@ int sq_register_natives(SQVM* pVM)
 	//RegisterFunction(pVM, (char*)"GetPlayerHealth", sq_getPlayerHealth, 2, ".i");
 	//RegisterFunction(pVM, (char*)"GetPlayerArmour", sq_getPlayerArmour, 2, ".i");
 	RegisterFunction(pVM, (char*)"GetPlayerName", (SQFUNCTION)sq_getPlayerName, 2, ".n");
-
 	return 1;
 }
 
@@ -174,62 +148,40 @@ private:
 	char m_szScriptAuthor[256];
 	char m_szScriptVersion[256];
 public:
-
 	SQVM* GetVM() { return m_pVM; };
-
 	char* GetScriptName() { return (char*)&m_szScriptName; };
 	char* GetScriptAuthor() { return (char*)&m_szScriptAuthor; };
 	char* GetScriptVersion() { return (char*)&m_szScriptVersion; };
 	void SetScriptAuthor(const char* szAuthor) { strncpy(m_szScriptAuthor, szAuthor, sizeof(m_szScriptAuthor)); };
 	void SetScriptVersion(const char* szVersion) { strncpy(m_szScriptVersion, szVersion, sizeof(m_szScriptVersion)); };
-	CScript(const char* szScriptName)
-	{
+	CScript(const char* szScriptName){
 		char szScriptPath[512];
 		sprintf(szScriptPath, "%s", szScriptName);
-
 		FILE* fp = fopen(szScriptPath, "rb");
-
 		if (!fp) {
 			printf("Script: Failed to load script %s - file does not exist \n", szScriptName);
 			return;
 		}
-
 		fclose(fp);
-
 		strcpy(m_szScriptName, szScriptName);
-
 		m_pVM = sq_open(1024);
-
 		SQVM* pVM = m_pVM;
-
 		sqstd_seterrorhandlers(pVM);
-
 		sq_setprintfunc(pVM, (SQPRINTFUNCTION)printfunc, (SQPRINTFUNCTION)printfunc);
-
 		sq_pushroottable(pVM);
-
 		sqstd_register_bloblib(pVM);	
-
 		sqstd_register_iolib(pVM);
-
 		sqstd_register_mathlib(pVM);
-
 		sqstd_register_stringlib(pVM);
-
 		sqstd_register_systemlib(pVM);
-
 		sq_register_natives(pVM);
-
 		if (SQ_FAILED(sqstd_dofile(pVM, (const SQChar*)szScriptPath, SQFalse, SQTrue)))
 		{
 			printf("Script: Compiling script error. Halting \n");
 			return;
 		}
-
 		sq_pop(pVM, 1);
-
 		printf("Script: Loaded %s \n", szScriptName);
-
 		return;
 	}
 };
@@ -307,108 +259,6 @@ void onPlayerPart(int playerId)
 	}
 }
 
-
-void SendPacket(ENetPeer* peer, const char* data)
-{
-	ENetPacket* packet = enet_packet_create(data, strlen(data) + 1, ENET_PACKET_FLAG_UNSEQUENCED);
-	enet_peer_send(peer, 0, packet);
-}
-
-void BroadcastPacket(ENetHost* server, const char* data)
-{
-	ENetPacket* packet = enet_packet_create(data, strlen(data) + 1, ENET_PACKET_FLAG_UNSEQUENCED);
-	enet_host_broadcast(server, 0, packet);
-}
-
-void DecryptPacket(char* data, int client_id)
-{
-	std::string str(data);
-	std::string buf;
-	std::stringstream ss(str);
-	std::vector<std::string> tokens;
-
-	while (ss >> buf)
-	{
-		tokens.push_back(buf);
-	}
-
-	if (tokens[0] == "8|")
-	{
-		float health, x, y, z;
-		health = atoi(tokens[1].c_str());
-
-		x = atof(tokens[2].c_str());
-		y = atof(tokens[3].c_str());
-		z = atof(tokens[4].c_str());
-	}
-
-	if (data[0] == '9' && data[1] == '|')
-	{
-		char* token = strtok(data, "|");
-		std::string packet;
-		while (token != NULL)
-		{
-			packet = token;
-			token = strtok(NULL, "|");
-		}
-		char data[256];
-		sprintf(data, "9| %s:%s", client_map[client_id]->GetUsername().c_str(), packet.c_str());
-		BroadcastPacket(server, data);
-	}
-}
-
-void ParseData(ENetHost* server, int id, char* data)
-{
-	int data_type;
-	sscanf(data, "%d|", &data_type);
-
-	
-
-	switch (data_type)
-	{
-		case 1:
-		{
-			char msg[80];
-			sscanf(data, "%*d|%[^\n]", &msg);
-
-			char send_data[1024] = { '\0' };
-			sprintf(send_data, "1|%d|%s", id, msg);
-			BroadcastPacket(server, send_data);
-			break;
-		}
-		case 2:
-		{
-			char username[80];
-			sscanf(data, "2|%[^\n]", &username);
-			
-			char send_data[1024] = { '\0' };
-			sprintf(send_data, "2|%d|%s", id, username);
-			onPlayerJoin(id);
-			printf("%s has joined the server\n", username);
-
-			BroadcastPacket(server, send_data);
-			client_map[id]->SetUsername(username);
-
-			break;
-		}
-		case 9:
-		{
-			DecryptPacket(data, id);
-			break;
-		}
-		case 8:
-		{
-			DecryptPacket(data, id);
-			BroadcastPacket(server, data);
-			break;
-		}
-	}
-}
-#include <fstream>
-std::string server_name;
-int max_players = 32;
-int port = 7777;
-
 inline bool does_file_exist(const std::string& name)
 {
 	#ifdef WIN32
@@ -438,13 +288,28 @@ void ProcessPacket(int playerID, unsigned char* data)
 	if (data[0] == 'L' && data[1] == 'U' && data[2] == 'I' && data[3] == 'D')
 	{
 		unsigned char* _luid = data + 4;
-		printf("\n[PACKET_TYPE_LUID] Received LUID From %i, %s", playerID,_luid);
+		if (Players[playerID]->m_bActive == false)
+		{
+			Players[playerID]->m_bActive = true;
+			Players[playerID]->m_LUID = (char*)_luid;
+			Players[playerID]->m_ID = playerID;
+		}
+		printf("\n[PACKET_TYPE_LUID] Received LUID From %i, %s", playerID, Players[playerID]->m_LUID.c_str());
+
 	}
 	if (data[0] == 'N' && data[1] == 'A' && data[2] == 'M' && data[3] == 'E')
 	{
 		unsigned char* _nick = data + 4;
+		Players[playerID]->m_Nick = (char*)_nick;
+
 		printf("\n[PACKET_TYPE_NAME] Received Nickname From %i, %s", playerID,_nick);
 	}
+}
+
+void onPlayerDisconnect(int playerID)
+{
+	Players[playerID]->m_bActive = false;
+	Players[playerID]->m_ID = -1;
 }
 
 int main(int argc, char** argv)
@@ -519,7 +384,6 @@ int main(int argc, char** argv)
 	DataStructures::List< SLNet::RakNetSocket2* > sockets;
 	server->GetSockets(sockets);
 
-
 	for (unsigned int i = 0; i < server->GetNumberOfAddresses(); i++)
 	{
 		SLNet::SystemAddress sa = server->GetInternalID(SLNet::UNASSIGNED_SYSTEM_ADDRESS, i);
@@ -536,21 +400,15 @@ int main(int argc, char** argv)
 			switch (packetIdentifier)
 			{
 			case ID_DISCONNECTION_NOTIFICATION:
+
+				onPlayerDisconnect(p->systemAddress.systemIndex);
+
 				printf("ID_DISCONNECTION_NOTIFICATION from %s\n", p->systemAddress.ToString(true));;
 				break;
 			case ID_NEW_INCOMING_CONNECTION:
 				printf("ID_NEW_INCOMING_CONNECTION from %s with GUID %s\n", p->systemAddress.ToString(true), p->guid.ToString());
 				clientID = p->systemAddress;
 				printf("clientID: %i\n", clientID.systemIndex);
-				//printf("Remote internal IDs:\n");
-				for (int index = 0; index < MAXIMUM_NUMBER_OF_INTERNAL_IDS; index++)
-				{
-					SLNet::SystemAddress internalId = server->GetInternalID(p->systemAddress, index);
-					if (internalId != SLNet::UNASSIGNED_SYSTEM_ADDRESS)
-					{
-					//	printf("%i. %s\n", index + 1, internalId.ToString(true));
-					}
-				}
 
 				break;
 
@@ -568,19 +426,11 @@ int main(int argc, char** argv)
 				break;
 
 			default:
-				//printf("%s\n", p->data);
-				
-				//printf("[UNKNOWN PACKET] %s\n", p->data);
-				//if (p->data[0] == '1') printf("Maybe LUID? \n");
 
 				clientID = p->systemAddress;
-				//printf("clientID: %i\n", clientID.systemIndex);
-
 				ProcessPacket(clientID.systemIndex,p->data);
-
 				sprintf(message, "%s", p->data);
 				server->Send(message, (const int)strlen(message) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, p->systemAddress, true);
-				
 				break;
 			}
 
