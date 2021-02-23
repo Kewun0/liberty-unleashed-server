@@ -41,7 +41,7 @@
 std::string server_name;
 int max_players = 32;
 int port = 7777;
-
+SLNet::RakPeerInterface* server = SLNet::RakPeerInterface::GetInstance();
 class CPlayer
 {
 public:
@@ -60,9 +60,11 @@ public:
 
 	float m_fHeading;
 
-	std::string m_systemAddress;
+	
 	std::string m_LUID;
 	std::string m_Nick;
+
+	SLNet::SystemAddress m_systemAddress;
 
 	CPlayer()
 	{
@@ -140,11 +142,24 @@ SQInteger sq_getPlayerLUID(SQVM* pVM)
 	return 1;
 }
 
+SQInteger sq_kickPlayer(SQVM* pVM)
+{
+	SQInteger playerSystemAddress;
+	sq_getinteger(pVM, -1, &playerSystemAddress);
+	if (Players[playerSystemAddress]->m_bActive == true)
+	{
+		Players[playerSystemAddress]->m_bActive = false;
+		Players[playerSystemAddress]->m_ID = -1;
+		server->CloseConnection(Players[playerSystemAddress]->m_systemAddress, true, 0);
+	}
+	return 1;
+}
 
 int sq_register_natives(SQVM* pVM)
 {
 	RegisterFunction(pVM, (char*)"GetPlayerName", (SQFUNCTION)sq_getPlayerName, 2, ".n");
 	RegisterFunction(pVM, (char*)"GetPlayerLUID", (SQFUNCTION)sq_getPlayerLUID, 2, ".n");
+	RegisterFunction(pVM, (char*)"KickPlayer", (SQFUNCTION)sq_kickPlayer, 2, ".n");
 	return 1;
 }
 
@@ -290,7 +305,7 @@ unsigned char GetPacketIdentifier(SLNet::Packet* p)
 		return (unsigned char)p->data[0];
 }
 
-void ProcessPacket(int playerID, unsigned char* data)
+void ProcessPacket(SLNet::SystemAddress Client, int playerID, unsigned char* data)
 {
 	if (data[0] == 'L' && data[1] == 'U' && data[2] == 'I' && data[3] == 'D')
 	{
@@ -310,7 +325,17 @@ void ProcessPacket(int playerID, unsigned char* data)
 		unsigned char* _nick = data + 4;
 		Players[playerID]->m_Nick = (char*)_nick;
 		onPlayerConnect(playerID);
+		Players[playerID]->m_systemAddress = Client;
 		printf("\n[PACKET_TYPE_NAME] Received Nickname From %i, %s", playerID,_nick);
+	}
+	if (data[0] == 'M' && data[1] == 'E' && data[2] == 'S' && data[3] == 'S')
+	{
+		if (Players[playerID]->m_bActive) {
+			unsigned char* _chatmsg = data + 4;
+			char toSend[255];
+			sprintf(toSend, "MESS%s: %s", Players[playerID]->m_Nick.c_str(), _chatmsg);
+			server->Send(toSend, strlen(toSend), HIGH_PRIORITY, RELIABLE_ORDERED, 0, SLNet::UNASSIGNED_SYSTEM_ADDRESS, true);
+		}
 	}
 }
 
@@ -357,7 +382,7 @@ int main(int argc, char** argv)
 	else { test = new CScript(script_name.c_str()); }
 	 
 
-	SLNet::RakPeerInterface* server = SLNet::RakPeerInterface::GetInstance();
+	
 	SLNet::RakNetStatistics* rss;
 	server->SetTimeoutTime(30000, SLNet::UNASSIGNED_SYSTEM_ADDRESS);
 
@@ -437,7 +462,7 @@ int main(int argc, char** argv)
 			default:
 
 				clientID = p->systemAddress;
-				ProcessPacket(clientID.systemIndex,p->data);
+				ProcessPacket(clientID,clientID.systemIndex,p->data);
 				sprintf(message, "%s", p->data);
 				server->Send(message, (const int)strlen(message) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, p->systemAddress, true);
 				break;
