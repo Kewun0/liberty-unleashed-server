@@ -44,6 +44,55 @@ ENetEvent event;
 ENetAddress address;
 ENetHost* server;
 
+class CPlayer
+{
+public:
+	int m_ID = -1;
+	int m_skinID;
+	int m_weapon;
+
+	bool m_bActive = false;
+
+	float m_fHealth;
+	float m_fArmour;
+
+	float m_fPosX;
+	float m_fPosY;
+	float m_fPosZ;
+
+	float m_fHeading;
+
+	std::string m_systemAddress;
+	std::string m_LUID;
+
+	CPlayer()
+	{
+		m_ID = -1;
+		m_bActive = false;
+	}
+};
+CPlayer* Players[256];
+
+int GetFreePlayerSlot()
+{
+	for (int i = 0; i <= 255; i++)
+	{
+		if (Players[i]->m_bActive == false)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+void RemovePlayer(int playerID)
+{
+	Players[playerID]->m_bActive = false;
+	Players[playerID]->m_ID = -1;
+}
+
+
+
 class Clients
 {
 private:
@@ -384,16 +433,26 @@ unsigned char GetPacketIdentifier(SLNet::Packet* p)
 		return (unsigned char)p->data[0];
 }
 
-void ServerThread()
+void ProcessPacket(int playerID, unsigned char* data)
 {
-	printf("Starting server \n");
-
-
-
+	if (data[0] == 'L' && data[1] == 'U' && data[2] == 'I' && data[3] == 'D')
+	{
+		unsigned char* _luid = data + 4;
+		printf("\n[PACKET_TYPE_LUID] Received LUID From %i, %s", playerID,_luid);
+	}
+	if (data[0] == 'N' && data[1] == 'A' && data[2] == 'M' && data[3] == 'E')
+	{
+		unsigned char* _nick = data + 4;
+		printf("\n[PACKET_TYPE_NAME] Received Nickname From %i, %s", playerID,_nick);
+	}
 }
 
 int main(int argc, char** argv)
 {
+	for (int i = 0; i <= 255; i++)
+	{
+		Players[i] = new CPlayer();
+	}
 	if (!does_file_exist("server.ini"))
 	{
 		printf("ERROR: server.ini is missing. Using default configuration\n\n");
@@ -465,15 +524,15 @@ int main(int argc, char** argv)
 	{
 		SLNet::SystemAddress sa = server->GetInternalID(SLNet::UNASSIGNED_SYSTEM_ADDRESS, i);
 	}
-	char message[2024];
+	char message[2048];
 
 	for (;;)
-	{
+	{ 
 		RakSleep(30);
 		for (p = server->Receive(); p; server->DeallocatePacket(p), p = server->Receive())
 		{
 			packetIdentifier = GetPacketIdentifier(p);
-
+			
 			switch (packetIdentifier)
 			{
 			case ID_DISCONNECTION_NOTIFICATION:
@@ -482,13 +541,14 @@ int main(int argc, char** argv)
 			case ID_NEW_INCOMING_CONNECTION:
 				printf("ID_NEW_INCOMING_CONNECTION from %s with GUID %s\n", p->systemAddress.ToString(true), p->guid.ToString());
 				clientID = p->systemAddress;
-				printf("Remote internal IDs:\n");
+				printf("clientID: %i\n", clientID.systemIndex);
+				//printf("Remote internal IDs:\n");
 				for (int index = 0; index < MAXIMUM_NUMBER_OF_INTERNAL_IDS; index++)
 				{
 					SLNet::SystemAddress internalId = server->GetInternalID(p->systemAddress, index);
 					if (internalId != SLNet::UNASSIGNED_SYSTEM_ADDRESS)
 					{
-						printf("%i. %s\n", index + 1, internalId.ToString(true));
+					//	printf("%i. %s\n", index + 1, internalId.ToString(true));
 					}
 				}
 
@@ -508,11 +568,19 @@ int main(int argc, char** argv)
 				break;
 
 			default:
-				printf("%s\n", p->data);
+				//printf("%s\n", p->data);
+				
+				//printf("[UNKNOWN PACKET] %s\n", p->data);
+				//if (p->data[0] == '1') printf("Maybe LUID? \n");
+
+				clientID = p->systemAddress;
+				//printf("clientID: %i\n", clientID.systemIndex);
+
+				ProcessPacket(clientID.systemIndex,p->data);
 
 				sprintf(message, "%s", p->data);
 				server->Send(message, (const int)strlen(message) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, p->systemAddress, true);
-				 
+				
 				break;
 			}
 
