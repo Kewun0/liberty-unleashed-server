@@ -155,11 +155,24 @@ SQInteger sq_kickPlayer(SQVM* pVM)
 	return 1;
 }
 
+SQInteger sq_message(SQVM* pVM)
+{
+	const char* msg;
+	sq_getstring(pVM, -1, &msg);
+
+	char toSend[255];
+	sprintf(toSend, "MESS%s",msg);
+	server->Send(toSend, strlen(toSend)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, SLNet::UNASSIGNED_SYSTEM_ADDRESS, true);
+
+	return 1;
+}
+
 int sq_register_natives(SQVM* pVM)
 {
 	RegisterFunction(pVM, (char*)"GetPlayerName", (SQFUNCTION)sq_getPlayerName, 2, ".n");
 	RegisterFunction(pVM, (char*)"GetPlayerLUID", (SQFUNCTION)sq_getPlayerLUID, 2, ".n");
 	RegisterFunction(pVM, (char*)"KickPlayer", (SQFUNCTION)sq_kickPlayer, 2, ".n");
+	RegisterFunction(pVM, (char*)"Message", (SQFUNCTION)sq_message, 2, ".s");
 	return 1;
 }
 
@@ -334,7 +347,7 @@ void ProcessPacket(SLNet::SystemAddress Client, int playerID, unsigned char* dat
 			unsigned char* _chatmsg = data + 4;
 			char toSend[255];
 			sprintf(toSend, "MESS%s: %s", Players[playerID]->m_Nick.c_str(), _chatmsg);
-			server->Send(toSend, strlen(toSend), HIGH_PRIORITY, RELIABLE_ORDERED, 0, SLNet::UNASSIGNED_SYSTEM_ADDRESS, true);
+			server->Send(toSend, strlen(toSend)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, SLNet::UNASSIGNED_SYSTEM_ADDRESS, true);
 		}
 	}
 }
