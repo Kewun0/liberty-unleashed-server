@@ -240,6 +240,25 @@ void onScriptLoad()
 	}
 }
 
+void onPlayerChat(int playerID, const char* msg)
+{
+	if (test)
+	{
+		SQVM* pVM = test->GetVM();
+		int iTop = sq_gettop(pVM);
+		sq_pushroottable(pVM);
+		sq_pushstring(pVM, (const SQChar*)"onPlayerChat", -1);
+		if (SQ_SUCCEEDED(sq_get(pVM, -3)))
+		{
+			sq_pushroottable(pVM);
+			sq_pushinteger(pVM, playerID);
+			sq_pushstring(pVM, msg,-1);
+			sq_call(pVM, 3, true, true);
+		}
+		sq_settop(pVM, iTop);
+	}
+}
+
 void onPlayerJoin(int playerId)
 {
 	if (test)
@@ -330,7 +349,7 @@ void ProcessPacket(SLNet::SystemAddress Client, int playerID, unsigned char* dat
 			Players[playerID]->m_ID = playerID;
 		}
 		onPlayerJoin(playerID);
-		printf("\n[PACKET_TYPE_LUID] Received LUID From %i, %s", playerID, Players[playerID]->m_LUID.c_str());
+		printf("\n%s has joined the server",  Players[playerID]->m_Nick.c_str());
 
 	}
 	if (data[0] == 'N' && data[1] == 'A' && data[2] == 'M' && data[3] == 'E')
@@ -339,12 +358,12 @@ void ProcessPacket(SLNet::SystemAddress Client, int playerID, unsigned char* dat
 		Players[playerID]->m_Nick = (char*)_nick;
 		onPlayerConnect(playerID);
 		Players[playerID]->m_systemAddress = Client;
-		printf("\n[PACKET_TYPE_NAME] Received Nickname From %i, %s", playerID,_nick);
 	}
 	if (data[0] == 'M' && data[1] == 'E' && data[2] == 'S' && data[3] == 'S')
 	{
 		if (Players[playerID]->m_bActive) {
 			unsigned char* _chatmsg = data + 4;
+			onPlayerChat(playerID, (const char*)_chatmsg);
 			char toSend[255];
 			sprintf(toSend, "MESS%s: %s", Players[playerID]->m_Nick.c_str(), _chatmsg);
 			server->Send(toSend, strlen(toSend)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, SLNet::UNASSIGNED_SYSTEM_ADDRESS, true);
@@ -354,6 +373,7 @@ void ProcessPacket(SLNet::SystemAddress Client, int playerID, unsigned char* dat
 
 void onPlayerDisconnect(int playerID)
 {
+	printf("\n%s has left the server", Players[playerID]->m_Nick.c_str());
 	Players[playerID]->m_bActive = false;
 	Players[playerID]->m_ID = -1;
 	onPlayerPart(playerID);
@@ -394,7 +414,7 @@ int main(int argc, char** argv)
 	}
 	else { test = new CScript(script_name.c_str()); }
 	 
-
+	printf("\n");
 	
 	SLNet::RakNetStatistics* rss;
 	server->SetTimeoutTime(30000, SLNet::UNASSIGNED_SYSTEM_ADDRESS);
@@ -450,12 +470,12 @@ int main(int argc, char** argv)
 
 				onPlayerDisconnect(p->systemAddress.systemIndex);
 
-				printf("ID_DISCONNECTION_NOTIFICATION from %s\n", p->systemAddress.ToString(true));;
+				//printf("ID_DISCONNECTION_NOTIFICATION from %s\n", p->systemAddress.ToString(true));;
 				break;
 			case ID_NEW_INCOMING_CONNECTION:
-				printf("ID_NEW_INCOMING_CONNECTION from %s with GUID %s\n", p->systemAddress.ToString(true), p->guid.ToString());
+				//printf("ID_NEW_INCOMING_CONNECTION from %s with GUID %s\n", p->systemAddress.ToString(true), p->guid.ToString());
 				clientID = p->systemAddress;
-				printf("clientID: %i\n", clientID.systemIndex);
+				//printf("clientID: %i\n", clientID.systemIndex);
 
 				break;
 
@@ -469,7 +489,10 @@ int main(int argc, char** argv)
 				break;
 
 			case ID_CONNECTION_LOST:
-				printf("ID_CONNECTION_LOST from %s\n", p->systemAddress.ToString(true));;
+
+			//	printf("ID_CONNECTION_LOST from %s\n", p->systemAddress.ToString(true));;
+				onPlayerDisconnect(p->systemAddress.systemIndex);
+				//printf("%s has lost connection to the server\n", Players[p->systemAddress.systemIndex]->m_Nick.c_str());
 				break;
 
 			default:
