@@ -191,6 +191,19 @@ SQInteger sq_setFPSLimit(SQVM* pVM)
 	server->Send(packet, strlen(packet), HIGH_PRIORITY, RELIABLE_ORDERED,0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
 	return 1;
 }
+SQInteger sq_giveWeapon(SQVM* pVM)
+{
+	SQInteger playerSystemAddress;
+	SQInteger wep;
+	SQInteger ammo;
+	sq_getinteger(pVM, -3, &playerSystemAddress);
+	sq_getinteger(pVM, -2, &wep);
+	sq_getinteger(pVM, -1, &ammo);
+	char pakFormat[32];
+	sprintf(pakFormat, "WEP%i %i",wep,ammo);
+	server->Send(pakFormat, strlen(pakFormat), HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
+	return 1;
+}
 
 int sq_register_natives(SQVM* pVM)
 {
@@ -200,6 +213,7 @@ int sq_register_natives(SQVM* pVM)
 	RegisterFunction(pVM, (char*)"Message", (SQFUNCTION)sq_message, 2, ".s");
 	RegisterFunction(pVM, (char*)"MessagePlayer", (SQFUNCTION)sq_messagePlayer, 3, ".sn");
 	RegisterFunction(pVM, (char*)"SetFPSLimit", (SQFUNCTION)sq_setFPSLimit, 3, ".nn");
+	RegisterFunction(pVM, (char*)"GivePlayerWeapon", (SQFUNCTION)sq_giveWeapon, 4, ".nnn");
 	return 1;
 }
 
