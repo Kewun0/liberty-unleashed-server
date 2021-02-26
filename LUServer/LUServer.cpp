@@ -177,7 +177,7 @@ SQInteger sq_messagePlayer(SQVM* pVM)
 	sprintf(pakFormat, "MESS%s\0", msg);
 	server->Send(pakFormat, strlen(pakFormat)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
 	return 1;
-} 
+}  
 
 SQInteger sq_setFPSLimit(SQVM* pVM)
 {
