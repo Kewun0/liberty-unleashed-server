@@ -199,10 +199,15 @@ SQInteger sq_giveWeapon(SQVM* pVM)
 	sq_getinteger(pVM, -3, &playerSystemAddress);
 	sq_getinteger(pVM, -2, &wep);
 	sq_getinteger(pVM, -1, &ammo);
-	char pakFormat[32];
-	sprintf(pakFormat, "WEP%i %i",wep,ammo);
-	server->Send(pakFormat, strlen(pakFormat), HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
-	return 1;
+
+	SLNet::BitStream bsOut;
+	bsOut.Write((SLNet::MessageID)ID_LUMSG1);
+	char package[16];
+	sprintf(package, "%i %i", wep, ammo);
+	bsOut.Write(package);
+	server->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
+	
+	return 1; 
 }
 
 int sq_register_natives(SQVM* pVM)
