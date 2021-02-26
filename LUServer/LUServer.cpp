@@ -29,7 +29,7 @@
 #pragma warning(disable: 4244)
 #pragma warning(disable: 4996)
 #pragma warning(disable: 8051)
-// LINUX: Link to libenet.a [ g++ LUServer.cpp -lstdc++ -L/home/ubuntu/lu_serv -lenet -o Server ]
+
 #ifdef WIN32
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"winmm.lib") 
@@ -167,12 +167,39 @@ SQInteger sq_message(SQVM* pVM)
 	return 1;
 }
 
+SQInteger sq_messagePlayer(SQVM* pVM)
+{
+	SQInteger playerSystemAddress;
+	const char* msg;
+	sq_getstring(pVM, -2, &msg);
+	sq_getinteger(pVM, -1, &playerSystemAddress);
+	char pakFormat[256];
+	sprintf(pakFormat, "MESS%s\0", msg);
+	server->Send(pakFormat, strlen(pakFormat)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
+	return 1;
+}
+
+SQInteger sq_setFPSLimit(SQVM* pVM)
+{
+	SQInteger playerSystemAddress;
+	SQInteger newFPSValue;
+	sq_getinteger(pVM, -2, &playerSystemAddress);
+	sq_getinteger(pVM, -1, &newFPSValue);
+	char packet[32];
+	sprintf(packet, "FPS%i", (int)newFPSValue);
+	
+	server->Send(packet, strlen(packet), HIGH_PRIORITY, RELIABLE_ORDERED,0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
+	return 1;
+}
+
 int sq_register_natives(SQVM* pVM)
 {
 	RegisterFunction(pVM, (char*)"GetPlayerName", (SQFUNCTION)sq_getPlayerName, 2, ".n");
 	RegisterFunction(pVM, (char*)"GetPlayerLUID", (SQFUNCTION)sq_getPlayerLUID, 2, ".n");
 	RegisterFunction(pVM, (char*)"KickPlayer", (SQFUNCTION)sq_kickPlayer, 2, ".n");
 	RegisterFunction(pVM, (char*)"Message", (SQFUNCTION)sq_message, 2, ".s");
+	RegisterFunction(pVM, (char*)"MessagePlayer", (SQFUNCTION)sq_messagePlayer, 3, ".sn");
+	RegisterFunction(pVM, (char*)"SetFPSLimit", (SQFUNCTION)sq_setFPSLimit, 3, ".nn");
 	return 1;
 }
 
