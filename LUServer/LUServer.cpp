@@ -228,6 +228,22 @@ SQInteger sq_setPlayerPos(SQVM* pVM)
 	return 1;
 }
 
+SQInteger sq_getPlayerIP(SQVM* pVM)
+{
+	SQInteger playerSystemAddress;
+	sq_getinteger(pVM, -1, &playerSystemAddress);
+	if (Players[playerSystemAddress]->m_bActive)
+	{
+		const char* ip = server->GetSystemAddressFromIndex(playerSystemAddress).ToString(false);
+
+		sq_pushstring(pVM, ip, -1);
+		return 1;
+	}
+
+	sq_pushbool(pVM, false);
+	return 1;
+}
+
 int sq_register_natives(SQVM* pVM)
 {
 	RegisterFunction(pVM, (char*)"GetPlayerName", (SQFUNCTION)sq_getPlayerName, 2, ".n");
@@ -238,6 +254,7 @@ int sq_register_natives(SQVM* pVM)
 	RegisterFunction(pVM, (char*)"SetFPSLimit", (SQFUNCTION)sq_setFPSLimit, 3, ".nn");
 	RegisterFunction(pVM, (char*)"GivePlayerWeapon", (SQFUNCTION)sq_giveWeapon, 4, ".nnn");
 	RegisterFunction(pVM, (char*)"SetPlayerPos", (SQFUNCTION)sq_setPlayerPos, 5, ".nnnn");
+	RegisterFunction(pVM, (char*)"GetPlayerIP", (SQFUNCTION)sq_getPlayerIP, 2, ".n");
 	return 1;
 }
 
