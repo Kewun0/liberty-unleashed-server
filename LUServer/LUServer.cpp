@@ -256,7 +256,7 @@ int sq_register_natives(SQVM* pVM)
 	RegisterFunction(pVM, (char*)"SetPlayerPos", (SQFUNCTION)sq_setPlayerPos, 5, ".nnnn");
 	RegisterFunction(pVM, (char*)"GetPlayerIP", (SQFUNCTION)sq_getPlayerIP, 2, ".n");
 	return 1;
-}
+} 
 
 class CScript
 {
