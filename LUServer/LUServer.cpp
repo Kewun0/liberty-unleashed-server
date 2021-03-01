@@ -568,7 +568,7 @@ int main(int argc, char** argv)
 				//printf("clientID: %i\n", clientID.systemIndex);
 
 				break;
-
+				 
 			case ID_INCOMPATIBLE_PROTOCOL_VERSION:
 				printf("ID_INCOMPATIBLE_PROTOCOL_VERSION\n");
 				break;
