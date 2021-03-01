@@ -25,8 +25,8 @@ void RAK_DLL_EXPORT RakNet::StatisticsToString( RakNetStatistics *s, char *buffe
 	if (verbosityLevel==0)
 	{
 		sprintf(buffer,
-			"Bytes per second sent     %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Bytes per second received %"PRINTF_64_BIT_MODIFIER"u\n"
+			"Bytes per second sent     %64u\n"
+			"Bytes per second received %64u\n"
 			"Current packetloss        %.0f%%\n",
 			s->valueOverLastSecond[ACTUAL_BYTES_SENT],
 			s->valueOverLastSecond[ACTUAL_BYTES_RECEIVED],
@@ -36,15 +36,15 @@ void RAK_DLL_EXPORT RakNet::StatisticsToString( RakNetStatistics *s, char *buffe
 	else if (verbosityLevel==1)
 	{
 		sprintf(buffer,
-			"Actual bytes per second sent       %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Actual bytes per second received   %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Message bytes per second queued    %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total actual bytes sent            %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total actual bytes received        %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total message bytes queued         %"PRINTF_64_BIT_MODIFIER"u\n"
+			"Actual bytes per second sent       %64u\n"
+			"Actual bytes per second received   %64u\n"
+			"Message bytes per second queued    %64u\n"
+			"Total actual bytes sent            %64u\n"
+			"Total actual bytes received        %64u\n"
+			"Total message bytes queued         %64u\n"
 			"Current packetloss                 %.0f%%\n"
 			"Average packetloss                 %.0f%%\n"
-			"Elapsed connection time in seconds %"PRINTF_64_BIT_MODIFIER"u\n",
+			"Elapsed connection time in seconds %64u\n",
 			s->valueOverLastSecond[ACTUAL_BYTES_SENT],
 			s->valueOverLastSecond[ACTUAL_BYTES_RECEIVED],
 			s->valueOverLastSecond[USER_MESSAGE_BYTES_PUSHED],
@@ -60,7 +60,7 @@ void RAK_DLL_EXPORT RakNet::StatisticsToString( RakNetStatistics *s, char *buffe
 		{
 			char buff2[128];
 			sprintf(buff2,
-				"Send capacity                    %"PRINTF_64_BIT_MODIFIER"u bytes per second (%.0f%%)\n",
+				"Send capacity                    %64u bytes per second (%.0f%%)\n",
 				s->BPSLimitByCongestionControl,
 				100.0f * s->valueOverLastSecond[ACTUAL_BYTES_SENT] / s->BPSLimitByCongestionControl
 				);
@@ -70,7 +70,7 @@ void RAK_DLL_EXPORT RakNet::StatisticsToString( RakNetStatistics *s, char *buffe
 		{
 			char buff2[128];
 			sprintf(buff2,
-				"Send limit                       %"PRINTF_64_BIT_MODIFIER"u (%.0f%%)\n",
+				"Send limit                       %64u (%.0f%%)\n",
 				s->BPSLimitByOutgoingBandwidthLimit,
 				100.0f * s->valueOverLastSecond[ACTUAL_BYTES_SENT] / s->BPSLimitByOutgoingBandwidthLimit
 				);
@@ -80,27 +80,27 @@ void RAK_DLL_EXPORT RakNet::StatisticsToString( RakNetStatistics *s, char *buffe
 	else
 	{
 		sprintf(buffer,
-			"Actual bytes per second sent         %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Actual bytes per second received     %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Message bytes per second sent        %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Message bytes per second resent      %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Message bytes per second queued      %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Message bytes per second processed   %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Message bytes per second ignored     %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total bytes sent                     %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total bytes received                 %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total message bytes sent             %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total message bytes resent           %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total message bytes queued           %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total message bytes received         %"PRINTF_64_BIT_MODIFIER"u\n"
-			"Total message bytes ignored          %"PRINTF_64_BIT_MODIFIER"u\n"
+			"Actual bytes per second sent         %64u\n"
+			"Actual bytes per second received     %64u\n"
+			"Message bytes per second sent        %64u\n"
+			"Message bytes per second resent      %64u\n"
+			"Message bytes per second queued      %64u\n"
+			"Message bytes per second processed   %64u\n"
+			"Message bytes per second ignored     %64u\n"
+			"Total bytes sent                     %64u\n"
+			"Total bytes received                 %64u\n"
+			"Total message bytes sent             %64u\n"
+			"Total message bytes resent           %64u\n"
+			"Total message bytes queued           %64u\n"
+			"Total message bytes received         %64u\n"
+			"Total message bytes ignored          %64u\n"
 			"Messages in send buffer, by priority %i,%i,%i,%i\n"
 			"Bytes in send buffer, by priority    %i,%i,%i,%i\n"
 			"Messages in resend buffer            %i\n"
-			"Bytes in resend buffer               %"PRINTF_64_BIT_MODIFIER"u\n"
+			"Bytes in resend buffer               %64u\n"
 			"Current packetloss                   %.0f%%\n"
 			"Average packetloss                   %.0f%%\n"
-			"Elapsed connection time in seconds   %"PRINTF_64_BIT_MODIFIER"u\n",
+			"Elapsed connection time in seconds   %64u\n",
 			s->valueOverLastSecond[ACTUAL_BYTES_SENT],
 			s->valueOverLastSecond[ACTUAL_BYTES_RECEIVED],
 			s->valueOverLastSecond[USER_MESSAGE_BYTES_SENT],
@@ -128,7 +128,7 @@ void RAK_DLL_EXPORT RakNet::StatisticsToString( RakNetStatistics *s, char *buffe
 		{
 			char buff2[128];
 			sprintf(buff2,
-				"Send capacity                    %"PRINTF_64_BIT_MODIFIER"u bytes per second (%.0f%%)\n",
+				"Send capacity                    %64u bytes per second (%.0f%%)\n",
 				s->BPSLimitByCongestionControl,
 				100.0f * s->valueOverLastSecond[ACTUAL_BYTES_SENT] / s->BPSLimitByCongestionControl
 				);
@@ -138,7 +138,7 @@ void RAK_DLL_EXPORT RakNet::StatisticsToString( RakNetStatistics *s, char *buffe
 		{
 			char buff2[128];
 			sprintf(buff2,
-				"Send limit                       %"PRINTF_64_BIT_MODIFIER"u (%.0f%%)\n",
+				"Send limit                       %64u (%.0f%%)\n",
 				s->BPSLimitByOutgoingBandwidthLimit,
 				100.0f * s->valueOverLastSecond[ACTUAL_BYTES_SENT] / s->BPSLimitByOutgoingBandwidthLimit
 				);

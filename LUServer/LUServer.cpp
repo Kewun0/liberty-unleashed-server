@@ -35,7 +35,6 @@
 #pragma comment(lib,"winmm.lib") 
 #pragma comment(lib,"squirrel.lib")
 #pragma comment(lib,"sqstdlib.lib")
-#pragma comment(lib,"slikenet.lib")
 #endif
 
 std::string server_name;

@@ -73,7 +73,7 @@ unsigned int splitPacketId, unsigned int splitPacketIndex, unsigned int splitPac
 	char localtime[128];
 	GetLocalTime(localtime);
 
-	sprintf(into, "%s,%s%s,%s,%5u,%5u,%s,%u,%"PRINTF_64_BIT_MODIFIER"u,%s,%s,%i,%i,%i,%i,%s,"
+	sprintf(into, "%s,%s%s,%s,%5u,%5u,%s,%u,%64u,%s,%s,%i,%i,%i,%i,%s,"
 					, localtime
 					, prefix
 					, dir
@@ -132,7 +132,7 @@ void PacketLogger::OnAck(unsigned int messageNumber, SystemAddress remoteSystemA
 	char localtime[128];
 	GetLocalTime(localtime);
 
-	sprintf(str, "%s,Rcv,Ack,%i,,,,%"PRINTF_64_BIT_MODIFIER"u,%s,%s,,,,,,"
+	sprintf(str, "%s,Rcv,Ack,%i,,,,%64u,%s,%s,,,,,,"
 					, localtime
 					, messageNumber
 					, (unsigned long long) time
@@ -152,7 +152,7 @@ void PacketLogger::OnPushBackPacket(const char *data, const BitSize_t bitsUsed, 
 	char localtime[128];
 	GetLocalTime(localtime);
 
-	sprintf(str, "%s,Lcl,PBP,,,%s,%i,%"PRINTF_64_BIT_MODIFIER"u,%s,%s,,,,,,"
+	sprintf(str, "%s,Lcl,PBP,,,%s,%i,%64u,%s,%s,,,,,,"
 					, localtime
 					, BaseIDTOString(data[0])
 					, bitsUsed
@@ -208,7 +208,7 @@ void PacketLogger::WriteMiscellaneous(const char *type, const char *msg)
 	char localtime[128];
 	GetLocalTime(localtime);
 
-	sprintf(str, "%s,Lcl,%s,,,,,%"PRINTF_64_BIT_MODIFIER"u,%s,,,,,,,%s"
+	sprintf(str, "%s,Lcl,%s,,,,,%64u,%s,,,,,,,%s"
 					, localtime
 					, type
 					, (unsigned long long) time
