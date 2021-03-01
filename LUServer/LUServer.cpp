@@ -500,6 +500,7 @@ int main(int argc, char** argv)
 
 	printf("Server name: %s\n", server_name.c_str());
 	printf("Max players: %i\n", max_players);
+	printf("Gamemode: Kickback in Liberty City\n");
 	printf("Port: %i\n", port);
 
 	if (script_name.length() == 0) {
