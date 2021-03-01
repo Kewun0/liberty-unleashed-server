@@ -209,6 +209,25 @@ SQInteger sq_giveWeapon(SQVM* pVM)
 	return 1;
 }
 
+SQInteger sq_setPlayerPos(SQVM* pVM)
+{
+	SQFloat x;
+	SQFloat y;
+	SQFloat z;
+	SQInteger playerSystemAddress;
+	sq_getinteger(pVM, -4, &playerSystemAddress);
+	sq_getfloat(pVM, -3, &x);
+	sq_getfloat(pVM, -2, &y);
+	sq_getfloat(pVM, -1, &z);
+	RakNet::BitStream bsOut;
+	bsOut.Write((RakNet::MessageID)ID_LUMSG2);
+	char package[50];
+	sprintf(package, "0 %f %f %f", x,y,z);
+	bsOut.Write(package);
+	server->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
+	return 1;
+}
+
 int sq_register_natives(SQVM* pVM)
 {
 	RegisterFunction(pVM, (char*)"GetPlayerName", (SQFUNCTION)sq_getPlayerName, 2, ".n");
@@ -218,6 +237,7 @@ int sq_register_natives(SQVM* pVM)
 	RegisterFunction(pVM, (char*)"MessagePlayer", (SQFUNCTION)sq_messagePlayer, 3, ".sn");
 	RegisterFunction(pVM, (char*)"SetFPSLimit", (SQFUNCTION)sq_setFPSLimit, 3, ".nn");
 	RegisterFunction(pVM, (char*)"GivePlayerWeapon", (SQFUNCTION)sq_giveWeapon, 4, ".nnn");
+	RegisterFunction(pVM, (char*)"SetPlayerPos", (SQFUNCTION)sq_setPlayerPos, 5, ".nnnn");
 	return 1;
 }
 
