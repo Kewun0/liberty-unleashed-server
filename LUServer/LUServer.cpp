@@ -15,13 +15,13 @@
 #include "sqstdmath.h"
 #include "sqstdstring.h"
 #include "sqstdsystem.h"
- 
+
 #include "raknet/MessageIdentifiers.h"
-#include "raknet/peerinterface.h"
-#include "raknet/statistics.h"
-#include "raknet/types.h"
+#include "raknet/rakpeerinterface.h"
+#include "raknet/raknetstatistics.h"
+#include "raknet/raknettypes.h"
 #include "raknet/BitStream.h"
-#include "raknet/sleep.h"
+#include "raknet/RakSleep.h"
 #include "raknet/PacketLogger.h"
 
 
@@ -41,7 +41,7 @@
 std::string server_name;
 int max_players = 32;
 int port = 7777;
-SLNet::RakPeerInterface* server = SLNet::RakPeerInterface::GetInstance();
+RakNet::RakPeerInterface* server = RakNet::RakPeerInterface::GetInstance();
 class CPlayer
 {
 public:
@@ -60,11 +60,11 @@ public:
 
 	float m_fHeading;
 
-	
+
 	std::string m_LUID;
 	std::string m_Nick;
 
-	SLNet::SystemAddress m_systemAddress;
+	RakNet::SystemAddress m_systemAddress;
 
 	CPlayer()
 	{
@@ -132,7 +132,7 @@ SQInteger sq_getPlayerLUID(SQVM* pVM)
 {
 	SQInteger playerSystemAddress;
 	sq_getinteger(pVM, -1, &playerSystemAddress);
-	if (Players[playerSystemAddress]->m_LUID.length() != 0 && Players[playerSystemAddress]->m_bActive == true )
+	if (Players[playerSystemAddress]->m_LUID.length() != 0 && Players[playerSystemAddress]->m_bActive == true)
 	{
 		sq_pushstring(pVM, Players[playerSystemAddress]->m_LUID.c_str(), -1);
 	}
@@ -161,8 +161,8 @@ SQInteger sq_message(SQVM* pVM)
 	sq_getstring(pVM, -1, &msg);
 
 	char toSend[255];
-	sprintf(toSend, "MESS%s",msg);
-	server->Send(toSend, strlen(toSend)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, SLNet::UNASSIGNED_SYSTEM_ADDRESS, true);
+	sprintf(toSend, "MESS%s", msg);
+	server->Send(toSend, strlen(toSend) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
 
 	return 1;
 }
@@ -175,9 +175,9 @@ SQInteger sq_messagePlayer(SQVM* pVM)
 	sq_getinteger(pVM, -1, &playerSystemAddress);
 	char pakFormat[256];
 	sprintf(pakFormat, "MESS%s\0", msg);
-	server->Send(pakFormat, strlen(pakFormat)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
+	server->Send(pakFormat, strlen(pakFormat) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
 	return 1;
-}  
+}
 
 SQInteger sq_setFPSLimit(SQVM* pVM)
 {
@@ -187,8 +187,8 @@ SQInteger sq_setFPSLimit(SQVM* pVM)
 	sq_getinteger(pVM, -1, &newFPSValue);
 	char packet[32];
 	sprintf(packet, "FPS%i", (int)newFPSValue);
-	
-	server->Send(packet, strlen(packet), HIGH_PRIORITY, RELIABLE_ORDERED,0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
+
+	server->Send(packet, strlen(packet), HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
 	return 1;
 }
 SQInteger sq_giveWeapon(SQVM* pVM)
@@ -200,14 +200,14 @@ SQInteger sq_giveWeapon(SQVM* pVM)
 	sq_getinteger(pVM, -2, &wep);
 	sq_getinteger(pVM, -1, &ammo);
 
-	SLNet::BitStream bsOut;
-	bsOut.Write((SLNet::MessageID)ID_LUMSG1);
+	RakNet::BitStream bsOut;
+	bsOut.Write((RakNet::MessageID)ID_LUMSG1);
 	char package[16];
 	sprintf(package, "%i %i", wep, ammo);
 	bsOut.Write(package);
 	server->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, server->GetSystemAddressFromIndex(playerSystemAddress), false);
-	
-	return 1; 
+
+	return 1;
 }
 
 int sq_register_natives(SQVM* pVM)
@@ -236,7 +236,7 @@ public:
 	char* GetScriptVersion() { return (char*)&m_szScriptVersion; };
 	void SetScriptAuthor(const char* szAuthor) { strncpy(m_szScriptAuthor, szAuthor, sizeof(m_szScriptAuthor)); };
 	void SetScriptVersion(const char* szVersion) { strncpy(m_szScriptVersion, szVersion, sizeof(m_szScriptVersion)); };
-	CScript(const char* szScriptName){
+	CScript(const char* szScriptName) {
 		char szScriptPath[512];
 		sprintf(szScriptPath, "%s", szScriptName);
 		FILE* fp = fopen(szScriptPath, "rb");
@@ -251,7 +251,7 @@ public:
 		sqstd_seterrorhandlers(pVM);
 		sq_setprintfunc(pVM, (SQPRINTFUNCTION)printfunc, (SQPRINTFUNCTION)printfunc);
 		sq_pushroottable(pVM);
-		sqstd_register_bloblib(pVM);	
+		sqstd_register_bloblib(pVM);
 		sqstd_register_iolib(pVM);
 		sqstd_register_mathlib(pVM);
 		sqstd_register_stringlib(pVM);
@@ -298,7 +298,7 @@ void onPlayerChat(int playerID, const char* msg)
 		{
 			sq_pushroottable(pVM);
 			sq_pushinteger(pVM, playerID);
-			sq_pushstring(pVM, msg,-1);
+			sq_pushstring(pVM, msg, -1);
 			sq_call(pVM, 3, true, true);
 		}
 		sq_settop(pVM, iTop);
@@ -361,29 +361,39 @@ void onPlayerPart(int playerId)
 
 inline bool does_file_exist(const std::string& name)
 {
-	#ifdef WIN32
-		struct stat buffer;
-		return (stat(name.c_str(), &buffer) == 0);
-	#else
-		return (access(name.c_str(), F_OK) != -1);
-	#endif
+#ifdef WIN32
+	struct stat buffer;
+	return (stat(name.c_str(), &buffer) == 0);
+#else
+	return (access(name.c_str(), F_OK) != -1);
+#endif
 }
-
-unsigned char GetPacketIdentifier(SLNet::Packet* p)
+/*
+	ID_LUMSG1,
+	ID_LUMSG2,
+	ID_LUMSG3,
+	ID_LUMSG4,
+	ID_LUMSG5,
+	ID_LUMSG6,
+	ID_LUMSG7,
+	ID_LUMSG8,
+	ID_LUMSG9,
+*/
+unsigned char GetPacketIdentifier(RakNet::Packet* p)
 {
 	if (p == 0)
-		return 255; 
+		return 255;
 
 	if ((unsigned char)p->data[0] == ID_TIMESTAMP)
 	{
-		RakAssert(p->length > sizeof(SLNet::MessageID) + sizeof(SLNet::Time));
-		return (unsigned char)p->data[sizeof(SLNet::MessageID) + sizeof(SLNet::Time)];
+		RakAssert(p->length > sizeof(RakNet::MessageID) + sizeof(RakNet::Time));
+		return (unsigned char)p->data[sizeof(RakNet::MessageID) + sizeof(RakNet::Time)];
 	}
 	else
 		return (unsigned char)p->data[0];
 }
 
-void ProcessPacket(SLNet::SystemAddress Client, int playerID, unsigned char* data)
+void ProcessPacket(RakNet::SystemAddress Client, int playerID, unsigned char* data)
 {
 	if (data[0] == 'L' && data[1] == 'U' && data[2] == 'I' && data[3] == 'D')
 	{
@@ -395,7 +405,7 @@ void ProcessPacket(SLNet::SystemAddress Client, int playerID, unsigned char* dat
 			Players[playerID]->m_ID = playerID;
 		}
 		onPlayerJoin(playerID);
-		printf("\n%s has joined the server",  Players[playerID]->m_Nick.c_str());
+		printf("\n%s has joined the server", Players[playerID]->m_Nick.c_str());
 
 	}
 	if (data[0] == 'N' && data[1] == 'A' && data[2] == 'M' && data[3] == 'E')
@@ -412,9 +422,47 @@ void ProcessPacket(SLNet::SystemAddress Client, int playerID, unsigned char* dat
 			onPlayerChat(playerID, (const char*)_chatmsg);
 			char toSend[255];
 			sprintf(toSend, "MESS%s: %s", Players[playerID]->m_Nick.c_str(), _chatmsg);
-			server->Send(toSend, strlen(toSend)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, SLNet::UNASSIGNED_SYSTEM_ADDRESS, true);
+			server->Send(toSend, strlen(toSend) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
 		}
 	}
+}
+
+void onReceiveOnFootSync(RakNet::SystemAddress Client, RakNet::Packet* p)
+{
+	RakNet::RakString rs;
+	RakNet::BitStream bsIn(p->data, p->length, false);
+	bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
+	bsIn.Read(rs);
+	char datae[255];
+	sprintf(datae, "%s", rs.C_String());
+	char* pch;
+	pch = strtok(datae, " ");
+	float x = atof(pch);
+	pch = strtok(NULL, " ");
+	float y = atof(pch);
+	pch = strtok(NULL, " ");
+	float z = atof(pch);
+	pch = strtok(NULL, " ");
+	float heading = atof(pch);
+	pch = strtok(NULL, " ");
+	float health = atof(pch);
+	pch = strtok(NULL, " ");
+	float armour = atof(pch);
+	pch = strtok(NULL, " ");
+	int weapon = atof(pch);
+
+	Players[p->systemAddress.systemIndex]->m_fArmour = armour;
+	Players[p->systemAddress.systemIndex]->m_fHealth = health;
+
+	Players[p->systemAddress.systemIndex]->m_fPosX = x;
+	Players[p->systemAddress.systemIndex]->m_fPosY = y;
+	Players[p->systemAddress.systemIndex]->m_fPosZ = z;
+	Players[p->systemAddress.systemIndex]->m_fHeading = heading;
+	Players[p->systemAddress.systemIndex]->m_weapon = weapon;
+
+
+
+	//printf("[MOVEMENT] %f,%f,%f,%f,%f,%f,%i\n", x, y, z, heading, health, armour, weapon);
 }
 
 void onPlayerDisconnect(int playerID)
@@ -459,31 +507,29 @@ int main(int argc, char** argv)
 		printf("Script: No script specified\n");
 	}
 	else { test = new CScript(script_name.c_str()); }
-	 
+
 	printf("\n");
-	
-	SLNet::RakNetStatistics* rss;
-	server->SetTimeoutTime(30000, SLNet::UNASSIGNED_SYSTEM_ADDRESS);
 
-	SLNet::Packet* p;
+	RakNet::RakNetStatistics* rss;
+	server->SetTimeoutTime(30000, RakNet::UNASSIGNED_SYSTEM_ADDRESS);
 
-	unsigned char packetIdentifier;   
+	RakNet::Packet* p;
 
-	SLNet::SystemAddress clientID = SLNet::UNASSIGNED_SYSTEM_ADDRESS;
+	unsigned char packetIdentifier;
+
+	RakNet::SystemAddress clientID = RakNet::UNASSIGNED_SYSTEM_ADDRESS;
 
 	char portstring[30];
 
-	SLNet::SocketDescriptor socketDescriptors[2];
+	RakNet::SocketDescriptor socketDescriptors[1];
 	socketDescriptors[0].port = static_cast<unsigned short>(port);
-	socketDescriptors[0].socketFamily = AF_INET; // Test out IPV4
-	socketDescriptors[1].port = static_cast<unsigned short>(port);
-	socketDescriptors[1].socketFamily = AF_INET6; // Test out IPV6
-	bool b = server->Startup(max_players, socketDescriptors, 2) == SLNet::RAKNET_STARTED;
+
+	bool b = server->Startup(max_players, socketDescriptors, 2) == RakNet::RAKNET_STARTED;
 	server->SetMaximumIncomingConnections(max_players);
 
 	if (!b)
 	{
-		b = server->Startup(4, socketDescriptors, 1) == SLNet::RAKNET_STARTED;
+		b = server->Startup(max_players, socketDescriptors, 1) == RakNet::RAKNET_STARTED;
 		if (!b)
 		{
 			puts("Server failed to start: Port in use?");
@@ -493,23 +539,22 @@ int main(int argc, char** argv)
 
 	server->SetOccasionalPing(true);
 	server->SetUnreliableTimeout(1000);
+	server->SetLimitIPConnectionFrequency(false);
 
-	DataStructures::List< SLNet::RakNetSocket2* > sockets;
-	server->GetSockets(sockets);
 
 	for (unsigned int i = 0; i < server->GetNumberOfAddresses(); i++)
 	{
-		SLNet::SystemAddress sa = server->GetInternalID(SLNet::UNASSIGNED_SYSTEM_ADDRESS, i);
+		RakNet::SystemAddress sa = server->GetInternalID(RakNet::UNASSIGNED_SYSTEM_ADDRESS, i);
 	}
 	char message[2048];
 
 	for (;;)
-	{ 
+	{
 		RakSleep(30);
 		for (p = server->Receive(); p; server->DeallocatePacket(p), p = server->Receive())
 		{
 			packetIdentifier = GetPacketIdentifier(p);
-			
+
 			switch (packetIdentifier)
 			{
 			case ID_DISCONNECTION_NOTIFICATION:
@@ -528,7 +573,9 @@ int main(int argc, char** argv)
 			case ID_INCOMPATIBLE_PROTOCOL_VERSION:
 				printf("ID_INCOMPATIBLE_PROTOCOL_VERSION\n");
 				break;
-
+			case ID_LUMSG2:
+				onReceiveOnFootSync(clientID, p);
+				break;
 			case ID_CONNECTED_PING:
 			case ID_UNCONNECTED_PING:
 				printf("Ping from %s\n", p->systemAddress.ToString(true));
@@ -536,7 +583,7 @@ int main(int argc, char** argv)
 
 			case ID_CONNECTION_LOST:
 
-			//	printf("ID_CONNECTION_LOST from %s\n", p->systemAddress.ToString(true));;
+				//	printf("ID_CONNECTION_LOST from %s\n", p->systemAddress.ToString(true));;
 				onPlayerDisconnect(p->systemAddress.systemIndex);
 				//printf("%s has lost connection to the server\n", Players[p->systemAddress.systemIndex]->m_Nick.c_str());
 				break;
@@ -544,7 +591,7 @@ int main(int argc, char** argv)
 			default:
 
 				clientID = p->systemAddress;
-				ProcessPacket(clientID,clientID.systemIndex,p->data);
+				ProcessPacket(clientID, clientID.systemIndex, p->data);
 				sprintf(message, "%s", p->data);
 				server->Send(message, (const int)strlen(message) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, p->systemAddress, true);
 				break;
